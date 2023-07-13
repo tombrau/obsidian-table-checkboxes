@@ -29,6 +29,9 @@ https://user-images.githubusercontent.com/66573865/197360507-251c2586-c11c-412c-
 - It then changes the checkbox to HTML `<input type="checkbox" unchecked>`.
 - When a HTML checkbox is clicked, the location of the table and then the cell gets identified. The plugin then changes the `unchecked` attribute to `checked`, or vice versa.
 
+## Changes
+- changes made to file so it works again.
+
 ## Known issues
 - Checkboxes in fully identical tables can cause issues.
 

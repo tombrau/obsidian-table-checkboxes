@@ -5,7 +5,7 @@ export default class TableCheckboxesPlugin extends Plugin {
 		
 		let view: any = null;
 		this.app.workspace.onLayoutReady(() => view = this.app.workspace.getActiveViewOfType(MarkdownView));
-
+		
 		// Add event listener to replace '-[]' with HTML checkbox inside a table.
 		this.registerDomEvent(document, 'keyup', (evt: KeyboardEvent) => {
 			// Check if no alt or ctrl key? https://developer.mozilla.org/en-US/docs/Web/API/Element/keydown_event
@@ -63,8 +63,15 @@ export default class TableCheckboxesPlugin extends Plugin {
 	// If they all match, the correct table is found and we find its row index in the file.
 	// Definitely could be unhandled edgecases. Please open an issue or PR!
 	// It also probably doesn't work 
-	private getTableLocation(page: string, allTables: RegExpMatchArray, table: string): Number {
-		let tableInFile: string;
+	private getTableLocation(page: string, allTables: RegExpMatchArray, table: string | undefined): number {
+		// If table is undefined, handle it (return early, throw an error, etc.)
+		if (!table) {
+			console.error("Table is undefined!");
+			return -1; // Or however you want to handle this case
+		}		
+		
+		//let tableInFile: string;
+		let tableInFile: string = '';
 
 		allTables.forEach((mdTable) => {
 			const htmlValues = htmlToMarkdown(table).split("\n").map(element => {
@@ -98,26 +105,30 @@ export default class TableCheckboxesPlugin extends Plugin {
 		return rowNumber;
 	}
 
-	// Gets the row in the file, and column in table.
-	private getCellLocation(evt: InputEvent, rowNumber: Number) {
-		try { // If the checkbox is in a row (below separator)
-			const columnIndex = evt.composedPath().find(td => td.nodeName.toLowerCase() === "td")!.cellIndex+1 // +1 to account for empty string
-			const rowIndex = evt.composedPath().find(tr => tr.nodeName.toLowerCase() === "tr")!.rowIndex+rowNumber+1; // +1 to account for the separator, +rowNumber to account for table location in file
-			return [rowIndex, columnIndex]
-		}
-		catch (error) { // If the checkbox is in the header (above separator)
-			const columnIndex = evt.composedPath().find(th => th.nodeName.toLowerCase() === "th")!.cellIndex+1 // +1 to account for empty string
-			const rowIndex = evt.composedPath().find(tr => tr.nodeName.toLowerCase() === "tr")!.rowIndex+rowNumber; // +rowNumber to account for table location in file
-			return [rowIndex, columnIndex]
-		} 
-	}
 
-	// Simply returns the <table></table> as an HTMLElement to use later.
-	private findTableInPath(evt: InputEvent) {
+private getCellLocation(evt: InputEvent, rowNumber: number) {
+    try {
+        const columnIndex = (evt.composedPath().find(td => (td as HTMLElement).nodeName.toLowerCase() === "td") as HTMLTableCellElement).cellIndex+1;
+        let rowIndex = (evt.composedPath().find(tr => (tr as HTMLElement).nodeName.toLowerCase() === "tr") as HTMLTableRowElement).rowIndex;
+        rowIndex += 2; // add 2 from rowIndex if the table has a header
+        rowIndex += rowNumber;
+        return [rowIndex, columnIndex]
+    }
+    catch (error) {
+        const columnIndex = (evt.composedPath().find(th => (th as HTMLElement).nodeName.toLowerCase() === "th") as HTMLTableCellElement).cellIndex+1;
+        let rowIndex = (evt.composedPath().find(tr => (tr as HTMLElement).nodeName.toLowerCase() === "tr") as HTMLTableRowElement).rowIndex;
+        rowIndex += 2; // add 2 from rowIndex if the table has a header
+        rowIndex += rowNumber;	
+        return [rowIndex, columnIndex]
+    } 
+}
+
+	private findTableInPath(evt: InputEvent): string | undefined {
 		const path = evt.composedPath();
-		const table = path.find(table => table.nodeName.toLowerCase() === "table");
-		return table;
+		const table = path.find(table => (table as HTMLElement).nodeName.toLowerCase() === "table");
+		return table ? (table as HTMLElement).outerHTML : undefined;
 	}
+	
 
 	private isMDCheckboxInTable(row: string): boolean {
 		// Regex to check if markdown checkbox is inside table
@@ -154,6 +165,7 @@ export default class TableCheckboxesPlugin extends Plugin {
 		let row = lines[cellLoc[0]];
 
 		const cells = row.split(columnRegex);
+
 		if (checkbox.checked) {
 			cells[cellLoc[1]] = cells[cellLoc[1]].replace('<input type="checkbox" unchecked>', '<input type="checkbox" checked>');
 		}
@@ -162,6 +174,12 @@ export default class TableCheckboxesPlugin extends Plugin {
 		}
 		row = cells.join("|");
 		lines[cellLoc[0]] = row;
-		this.app.vault.modify(view.file, lines.join("\n"));
+
+		try {
+			this.app.vault.modify(view.file, lines.join("\n"));
+		} catch (error) {
+			console.error(' Error modifying file: ', error);
+		}
+		
 	}
 }
